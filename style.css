@@ -36,3 +36,11 @@
 }
 @media(max-width:380px){.dpad{left:10px;grid-template:repeat(2,48px)/repeat(3,43px)}.action-pad{right:12px;grid-template-columns:55px 55px;gap:12px!important}.touch-controls .action-pad button{width:55px;height:55px}.journey{display:none}.score{margin-left:auto}}
 @media(max-height:500px) and (pointer:coarse),(max-height:500px) and (max-width:800px){.start-content h1{font-size:64px;margin:5px 0 14px}.eyebrow{display:none}.primary{margin-top:12px}.result-title{font-size:36px;margin:5px}.result-copy{margin:5px auto}.secondary{margin-top:8px}.touch-controls>div{bottom:24%}}
+
+/* Lower, two-direction mobile pad. */
+@media(max-width:800px),(pointer:coarse) and (max-width:1400px){
+ .touch-controls>div{bottom:17%}
+ .dpad{grid-template:52px/repeat(3,48px)}
+ .pad-left{grid-area:1/1}.pad-center{grid-area:1/2}.pad-right{grid-area:1/3}
+}
+@media(max-width:380px){.dpad{grid-template:48px/repeat(3,43px)}}

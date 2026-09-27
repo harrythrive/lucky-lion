@@ -9,6 +9,12 @@ export class FestivalMusic{
  cymbal(t){this.noiseHit(t,.45,.095,3600);for(const f of[3730,5140,6370])this.tone(f,t,.26,.012,'square',.97)}
  gong(t){for(const [f,v]of[[98,.19],[148,.10],[207,.055],[281,.04],[421,.025]])this.tone(f,t,1.6,v,'sine',.985)}
  crackle(){if(!this.playing)return;this.noiseHit(this.ctx.currentTime,.075,.24,1400);this.tone(120,this.ctx.currentTime,.055,.12,'square',.35)}
+ cheer(){if(!this.playing)return;const t=this.ctx.currentTime;
+  // Layered rising voices, whistles and irregular claps form a short crowd cheer.
+  for(let i=0;i<9;i++){const at=t+i*.065;this.tone(260+i*29,at,.65,.045,'triangle',1.45);this.noiseHit(at,.13,.09,1100);}
+  for(let i=0;i<12;i++)this.noiseHit(t+.15+i*.11,.05,.16,900);
+  this.tone(1400,t+.35,.5,.018,'sine',1.3);
+ }
  schedule(){if(!this.playing)return;const sixteenth=60/116/4;while(this.next<this.ctx.currentTime+.12){const s=this.step%128,b=s%16,bar=Math.floor(s/16),t=this.next;
   if([0,6,8,11,14].includes(b))this.drum(t,b===0||b===8);if(bar%2===1&&b>=12)this.drum(t,false);
   if(b===4||b===12)this.cymbal(t);if(s===0||s===64)this.gong(t);

@@ -77,14 +77,14 @@ export class Game{
  constructor(){this.reset();this.state='title'}
  reset(seed=Math.floor(Math.random()*4294967296),map=this.map||'hongkong'){
   this.map=map;this.seed=seed;this.platforms=makeCourse(seed,map);this.firecrackers=makeFirecrackers(this.platforms);this.state='playing';this.time=0;this.lives=3;this.score=0;this.distance=0;this.lastSection=0;
-  this.p={x:125,y:460,vx:0,vy:0,onGround:true,support:this.platforms[0].id,face:1,inv:0,rise:0,cooldown:0,shuffle:false,coyote:.1,jumpBuffer:0,takeoff:0,airTime:0,landTime:0,gait:0,heldDirection:0,directionHeld:0,momentum:false,highJump:false};
+  this.p={x:125,y:460,vx:0,vy:0,onGround:true,support:this.platforms[0].id,face:1,inv:0,rise:0,cooldown:0,shuffle:false,coyote:.1,jumpBuffer:0,takeoff:0,airTime:0,landTime:0,gait:0,heldDirection:0,directionHeld:0,momentum:false,highJump:false,lastJumpTap:-10,launchY:0,photoRise:false};
   this.checkpoint={x:125,y:460};this.lastInput={};this.events=[];
   this.envelopes=makePackets(this.platforms,seed);this.claimedClusters=new Set();this.riseAward=false;this.finishBonus=false;
  }
  emit(type,text){this.events.push({type,text})}
  hit(reason){if(this.p.inv>0||this.state!=='playing')return;this.lives--;this.emit('hit',reason);if(this.lives<=0){this.state='lost';return}
   const support=this.platforms.find(a=>a.type==='ground'&&this.checkpoint.x>=a.x&&this.checkpoint.x<=a.x+a.w);
-  Object.assign(this.p,{x:this.checkpoint.x,y:this.checkpoint.y,vx:0,vy:0,onGround:true,support:support?.id??null,inv:2.5,rise:0,cooldown:0,coyote:.1,jumpBuffer:0,takeoff:0,airTime:0,landTime:0,heldDirection:0,directionHeld:0,momentum:false,highJump:false});
+  Object.assign(this.p,{x:this.checkpoint.x,y:this.checkpoint.y,vx:0,vy:0,onGround:true,support:support?.id??null,inv:2.5,rise:0,cooldown:0,coyote:.1,jumpBuffer:0,takeoff:0,airTime:0,landTime:0,heldDirection:0,directionHeld:0,momentum:false,highJump:false,lastJumpTap:-10,launchY:0,photoRise:false});
  }
  firePhase(h){return(this.time+h.phase)%h.period}
  firecrackerState(h){let phase=this.firePhase(h),active=phase>=1.2&&phase<2.9;return{warning:phase<1.2,active,progress:Math.max(0,Math.min(1,(phase-1.2)/1.7)),y:h.bottom-(h.bottom-h.top)*Math.max(0,Math.min(1,(phase-1.2)/1.7))}}
@@ -99,9 +99,16 @@ export class Game{
   const wasGround=p.onGround;
   p.inv=Math.max(0,p.inv-dt);p.rise=Math.max(0,p.rise-dt);p.cooldown=Math.max(0,p.cooldown-dt);p.landTime=Math.max(0,p.landTime-dt);p.jumpBuffer=Math.max(0,p.jumpBuffer-dt);
   p.shuffle=!!k.down&&p.onGround&&p.rise===0;p.coyote=p.onGround?.11:Math.max(0,p.coyote-dt);
-  if(k.jump&&!this.lastInput.jump)p.jumpBuffer=.15;
-  if(k.up&&!this.lastInput.up&&p.onGround&&p.cooldown===0&&!p.shuffle&&!p.takeoff&&!k.jump&&p.jumpBuffer===0){p.rise=2;p.cooldown=4.5;this.riseAward=false;this.emit('rise','STAND TALL · ABOVE CAMERA FLASHES')}
-  if(p.rise>0&&p.rise<.7&&!this.riseAward){this.riseAward=true;this.score+=150;this.emit('bonus','BEAUTIFUL FORM +150')}
+  const jumpTap=!!k.jumpPressed||(k.jump&&!this.lastInput.jump);
+  if(jumpTap){
+   const doubleTap=this.time-p.lastJumpTap<=.34;p.lastJumpTap=this.time;
+   if(doubleTap&&!p.highJump&&(p.takeoff>0||(!p.onGround&&p.airTime<.34&&p.vy<0))){
+    p.highJump=true;p.jumpBuffer=0;
+    if(!p.onGround){const climbed=Math.max(0,p.launchY-p.y);p.vy=-Math.sqrt(Math.max(0,970*970-2*1450*climbed));this.emit('jump','HIGH LEAP!');}
+   }else if(p.onGround||p.coyote>0)p.jumpBuffer=.15;
+  }
+  if(k.up&&!this.lastInput.up&&p.onGround&&p.cooldown===0&&!p.shuffle&&!p.takeoff&&!k.jump&&p.jumpBuffer===0){p.rise=2;p.cooldown=4.5;this.riseAward=false;p.photoRise=photographers.some(h=>Math.abs(p.x-h.x)<=145)&&p.y>=330;this.emit('rise','STAND TALL · ABOVE CAMERA FLASHES');if(p.photoRise)this.emit('cheer','THE CROWD LOVES IT!')}
+  if(p.rise>0&&p.rise<.7&&!this.riseAward){this.riseAward=true;const points=p.photoRise?500:150;this.score+=points;this.emit('bonus',p.photoRise?'PHOTO FINISH POSE +500':'BEAUTIFUL FORM +150')}
   const dir=(k.right?1:0)-(k.left?1:0);
   // Precision controls are the default, including in mid-air. Only a deliberate
   // uninterrupted run earns extra speed; release, reversal or braking cancels it.
@@ -113,9 +120,9 @@ export class Game{
   if(p.momentum)p.vx=approach(p.vx,dir*maxSpeed,120*dt);
   else p.vx=dir*maxSpeed;
   if(dir)p.face=dir;
-  if(p.jumpBuffer>0&&p.coyote>0&&!p.takeoff){p.takeoff=p.onGround?.105:.001;p.highJump=!!k.up;if(p.highJump&&p.rise>1.8)p.cooldown=0;p.jumpBuffer=0;p.rise=0;p.landTime=0;}
+  if(p.jumpBuffer>0&&p.coyote>0&&!p.takeoff){p.takeoff=p.onGround?.105:.001;p.highJump=false;p.launchY=p.y;if(p.highJump&&p.rise>1.8)p.cooldown=0;p.jumpBuffer=0;p.rise=0;p.landTime=0;}
   let launched=false;
-  if(p.takeoff>0){if(k.up)p.highJump=true;p.takeoff-=dt;if(p.takeoff<=0||!p.onGround){p.takeoff=0;p.vy=p.highJump?-970:-655;p.onGround=false;p.support=null;p.coyote=0;p.airTime=0;launched=true;this.emit('jump',p.highJump?'HIGH LEAP!':'');}}
+  if(p.takeoff>0){p.takeoff-=dt;if(p.takeoff<=0||!p.onGround){p.takeoff=0;p.vy=p.highJump?-970:-655;p.onGround=false;p.support=null;p.coyote=0;p.airTime=0;launched=true;this.emit('jump',p.highJump?'HIGH LEAP!':'');}}
   p.x=Math.max(25,Math.min(END+50,p.x+p.vx*dt));p.gait+=Math.abs(p.vx)*dt/13+(p.shuffle?dt*7:0);
   // A narrower balance point makes narrow decks meaningful without pixel-perfect feet.
   if(p.onGround&&support&&p.x+10>support.x&&p.x-10<support.x+support.w){p.y=support.y;p.vy=0;p.airTime=0;}
